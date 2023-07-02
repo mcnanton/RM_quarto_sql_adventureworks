@@ -7,7 +7,7 @@ format:
     colorlinks: true
 ---
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 library(odbc)
 library(DBI)
 library(dplyr)
@@ -15,13 +15,13 @@ library(ggplot2)
 library(gt)
 ```
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 keys <- readLines("keys.txt", warn = FALSE)
 username <- gsub("username:", "", keys[1])
 password <- gsub("password:", "", keys[2])
 ```
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 con <- dbConnect(odbc(),
                  Driver = "SQL Server",
                  Server = "157.92.26.17,1443",
@@ -37,7 +37,7 @@ con <- dbConnect(odbc(),
 
 ### Análisis de ventas por trimestre
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 query1 <- "
 --- QUERY 1 
 
@@ -75,9 +75,11 @@ q1 <- dbGetQuery(con, query1)
 
 ```
 
-#### Visualización tabular
+##### Visualización 1
 
-```{r}
+En la siguiente tabla figura, para cada año de la base, los ingresos por ventas por canal de venta
+
+```{r, echo = FALSE, eval = TRUE}
 q1 %>% 
   gt() %>% 
   tab_header(title = md('**Ventas por trimestre**'),
@@ -85,13 +87,15 @@ q1 %>%
   opt_align_table_header('left')
 ```
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 
 ```
 
-#### Serie de tiempo
+##### Visualización 2
 
-```{r}
+En la siguiente visualización se observa cómo mas allá de un estancamiento durante los 3 últimos trimestres del 2013 las ventas se han incrementado anualmente. También se debe destacar el marcado crecimiento de las ventas por internet. No parece observarse una estacionalidad por trimestre.
+
+```{r, echo = FALSE, eval = TRUE}
 q1 %>% 
   mutate(CalendarYear = factor(CalendarYear),
          CalendarQuarter = factor(CalendarQuarter, levels = c("1", "2", "3", "4"))) %>% 
@@ -103,7 +107,9 @@ q1 %>%
 
 ### Las categorías más exitosas
 
-```{r}
+##### Visualización 3
+
+```{r, echo = FALSE, eval = TRUE}
 query2a <- "
 WITH reseller AS
 (
@@ -143,7 +149,7 @@ FROM ambas
 GROUP BY ProductSubcategoryKey, SpanishProductSubcategoryName, CanalVenta
 )
 
-SELECT SpanishProductSubcategoryName, CanalVenta, ProductosVendidos_PorCanalVenta,
+SELECT SpanishProductSubcategoryName as Subcategoría, CanalVenta, ProductosVendidos_PorCanalVenta as N_Vendidos_canal,
 SUM(ProductosVendidos_PorCanalVenta) OVER(PARTITION BY SpanishProductSubcategoryName) AS ProductosVendidos_PorSubCategoria
 FROM ambas_agrupadas
 ORDER BY ProductosVendidos_PorSubCategoria DESC
@@ -151,7 +157,9 @@ ORDER BY ProductosVendidos_PorSubCategoria DESC
 q2a <- dbGetQuery(con, query2a)
 ```
 
-```{r}
+En la tabla a continuación se observa cómo la subcategoría de bicicletas de carrera es la que posee mayor cantidad de productos vendidos.
+
+```{r, echo = FALSE, eval = TRUE}
 q2a %>% 
   gt() %>% 
   tab_header(title = md('**Subcategorías de productos con más ventas**'),
@@ -159,9 +167,9 @@ q2a %>%
   opt_align_table_header('left')
 ```
 
-scs
+##### Visualización 4
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 query2b <- "
 WITH reseller AS
 (
@@ -205,7 +213,7 @@ FROM ambas
 GROUP BY ProductCategoryKey, SpanishProductCategoryName, CanalVenta
 )
 
-SELECT SpanishProductCategoryName, CanalVenta, ProductosVendidos_PorCanalVenta,
+SELECT SpanishProductCategoryName, CanalVenta, ProductosVendidos_PorCanalVenta  as N_Vendidos_canal,
 SUM(ProductosVendidos_PorCanalVenta) OVER(PARTITION BY SpanishProductCategoryName) AS ProductosVendidos_PorCategoria
 FROM ambas_agrupadas
 ORDER BY ProductosVendidos_PorCategoria DESC
@@ -213,7 +221,9 @@ ORDER BY ProductosVendidos_PorCategoria DESC
 q2b <- dbGetQuery(con, query2b)
 ```
 
-```{r}
+En el caso de la distribución de ventas por categoría, vemos como la categoría Bicicletas es la que aporta la mayor cantidad de productos vendidos.
+
+```{r, echo = FALSE, eval = TRUE}
 q2b %>% 
     gt() %>%
   tab_header(title = md('**Ventas por categoría**'),
@@ -223,7 +233,9 @@ q2b %>%
 
 #### Productos más vendidos en cada categoría
 
-```{r}
+##### Visualización 5 PENDIENTE
+
+```{r, echo = FALSE, eval = TRUE}
 query3 <- "
 WITH reseller AS
 (
@@ -277,7 +289,7 @@ WHERE ranking_cantidad_pvendidos_categoria < 3
 q3 <- dbGetQuery(con, query3)
 ```
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 q3 %>% 
     gt() %>%
   tab_header(title = md('**Productos más vendidos por categoría y canal**'),
@@ -287,10 +299,7 @@ q3 %>%
 
 ## Análisis de promociones en ventas online
 
-### 
-Ventas por trimestre en volumen de dinero
-
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 query4 <- "WITH r_sin_promocion AS
 (
 SELECT dd.CalendarYear, dd.CalendarQuarter, frs.SalesAmount, 'Sin Promocion' AS Promocion_SiNo
@@ -354,19 +363,11 @@ ORDER BY CalendarYear, CalendarQuarter"
 q4 <- dbGetQuery(con, query4)
 ```
 
-#### Visualización tabular
+##### Visualización 6
 
-```{r}
-q4 %>% 
-    gt() %>%
-  tab_header(title = md('**Ventas con y sin descuento por año y trimestre**'),
-                     subtitle = 'Internet y Resellers. Período 2010-2013' ) %>%
-  opt_align_table_header('left')
-```
+Se observa cómo la venta promocional es aún una estrategia de venta muy marginal, si bien se utiliza más año a año.
 
-#### Serie de tiempo
-
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 q4 %>% 
   mutate(CalendarYear = factor(CalendarYear),
          CalendarQuarter = factor(CalendarQuarter, levels = c("1", "2", "3", "4"))) %>% 
@@ -378,7 +379,11 @@ q4 %>%
 
 ### Aplicación de promociones por categoría
 
-```{r}
+##### Visualización 7
+
+Se observa cómo la categoría bicicletas es la que cuenta con mayor venta promocional. Esto tiene sentido dato que son los productos más costosos monetariamente.
+
+```{r, echo = FALSE, eval = TRUE}
 query5 <- "WITH helper1 AS (SELECT DISTINCT isales.SalesOrderNumber, categ.SpanishProductCategoryName,
 CASE WHEN isales.PromotionKey = '1' THEN 'sin_promocion'
 ELSE 'con_promocion'
@@ -402,7 +407,7 @@ SUM(total) AS total_categoria
 FROM helper2
 GROUP BY SpanishProductCategoryName)
 
-SELECT SpanishProductCategoryName, total_categoria, productos_con_promocion, productos_sin_promocion, FORMAT((productos_con_promocion * 1.0 /total_categoria), 'P') as porc_con_promocion, FORMAT((productos_sin_promocion * 1.0 /total_categoria), 'P') as porc_sin_promocion
+SELECT SpanishProductCategoryName as Categoria, total_categoria, productos_con_promocion as prod_c_promo, productos_sin_promocion as prod_s_promo, FORMAT((productos_con_promocion * 1.0 /total_categoria), 'P') as porc_c_promo, FORMAT((productos_sin_promocion * 1.0 /total_categoria), 'P') as porc_s_promo
 FROM helper3"
 
 q5 <- dbGetQuery(con, query5)
@@ -413,24 +418,31 @@ q5 %>%
   opt_align_table_header('left')
 ```
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 q5 %>% 
-  ggplot(aes(x = SpanishProductCategoryName)) +
-    geom_bar(aes(y = productos_sin_promocion), fill = "grey", colour = "blue", position = "dodge", stat = "identity") +
-  geom_bar(aes(y = productos_con_promocion), fill = "grey", colour = "red", position = "dodge", stat = "identity") +
+  ggplot(aes(x = Categoria)) +
+    geom_bar(aes(y = prod_s_promo), fill = "grey", colour = "blue", position = "dodge", stat = "identity") +
+  geom_bar(aes(y = prod_c_promo), fill = "grey", colour = "red", position = "dodge", stat = "identity") +
   labs(x = "Categoría", y = "Total") +
-  ggtitle("Aplicación de promociones a productos por categoría") 
+  ggtitle("Aplicación de promociones a productos por categoría") +
+  scale_color_manual(values = c("Productos con promoción" = "red", "Productos sin promoción" = "blue"), 
+                    labels = c("Productos con promoción", "Productos sin promoción"))
 ```
 
 ### Las promociones más aplicadas
 
-```{r}
-query6 <- "SELECT isales.PromotionKey, COUNT(*) as total_uso_id_promo
+##### Visualización 8
+
+```{r, echo = FALSE, eval = TRUE}
+query6 <- "WITH tabla1 AS (SELECT isales.PromotionKey, COUNT(*) as total_uso_id_promo
 FROM dbo.FactInternetSales isales
 LEFT JOIN dbo.DimProduct prod ON isales.ProductKey = prod.ProductKey
 WHERE isales.PromotionKey != '1'
 AND YEAR(isales.OrderDate) IN (2010, 2011, 2012, 2013)
-GROUP BY isales.PromotionKey
+GROUP BY isales.PromotionKey)
+SELECT t1.PromotionKey, t1.total_uso_id_promo AS total_uso_promo, promo.SpanishPromotionName, promo.SpanishPromotionType, promo.SpanishPromotionCategory
+FROM tabla1 t1
+LEFT JOIN dbo.DimPromotion promo on t1.PromotionKey = promo.PromotionKey
 ORDER BY total_uso_id_promo DESC"
 
 q6 <- dbGetQuery(con, query6)
@@ -441,28 +453,10 @@ q6 %>%
   opt_align_table_header('left')
 ```
 
-```{r}
-query6b <- "SELECT SpanishPromotionName, SpanishPromotionType, SpanishPromotionCategory
-FROM dbo.DimPromotion
-WHERE PromotionKey IN (SELECT isales.PromotionKey
-FROM dbo.FactInternetSales isales
-LEFT JOIN dbo.DimProduct prod ON isales.ProductKey = prod.ProductKey
-WHERE isales.PromotionKey != '1'
-AND YEAR(isales.OrderDate) IN (2010, 2011, 2012, 2013))"
-q6b <- dbGetQuery(con, query6b)
-```
-
-```{r}
-q6b %>% 
-  gt() %>% 
-  tab_header(title = md('**Detalle de las promociones más utilizadas**'),
-                     subtitle = 'Internet Sales. Período 2010-2013' ) %>%
-  opt_align_table_header('left')
-```
 
 ## Resellers
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 query7 <- "WITH orderid_reseller AS (SELECT DISTINCT rsales.SalesOrderNumber, dr.ResellerName
 FROM dbo.FactResellerSales rsales
 LEFT JOIN dbo.DimReseller dr ON rsales.ResellerKey = dr.ResellerKey
@@ -475,7 +469,12 @@ q7 <- dbGetQuery(con, query7)
 
 ```
 
-```{r}
+
+
+##### Visualización 9
+Se observa cómo las ventas 2010-2013 se encuentran atomizadas entre los resellers del período
+
+```{r, echo = FALSE, eval = TRUE}
 q7 %>% 
   gt() %>% 
   tab_header(title = md('**Los mejores resellers del período**'),
@@ -485,7 +484,7 @@ q7 %>%
 
 ### Evolución de los mejores resellers
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 query8 <- "WITH orden_reseller_anio AS (
     SELECT DISTINCT rsales.SalesOrderNumber, dr.ResellerName, YEAR(rsales.OrderDate) AS anio
     FROM dbo.FactResellerSales rsales
@@ -505,22 +504,29 @@ FROM orden_reseller_anio ora
 JOIN top_resellers ON ora.ResellerName = top_resellers.ResellerName
 GROUP BY ora.ResellerName, anio"
 q8 <- dbGetQuery(con, query8)
+
+```
+
+##### Visualización 10
+
+```{r}
 q8 %>% 
   gt() %>% 
   tab_header(title = md('**Recorrido de mejores resellers**'),
                      subtitle = 'Año a año' ) %>%
   opt_align_table_header('left')
-```
-
-### Línea de tiempo
-
-```{r}
 
 ```
 
-## Query 9
+```{r, echo = FALSE, eval = TRUE}
+q8 %>% 
+  ggplot(aes(x = anio, y = total_ventas_reseller_anio, color = ResellerName)) +
+  geom_line()
+```
 
-```{r}
+## Vendedores y promociones
+
+```{r, echo = FALSE, eval = TRUE}
 query9 <- "WITH producto_venta_reseller AS (SELECT rsales.ProductKey, rsales.SalesOrderNumber, dr.ResellerName, rsales.PromotionKey
 FROM dbo.FactResellerSales rsales
 LEFT JOIN dbo.DimReseller dr ON rsales.ResellerKey = dr.ResellerKey
@@ -551,6 +557,10 @@ SELECT ResellerName, total_ventas, total_ventas_promo, (total_ventas_promo*100/t
 FROM totales
 ORDER BY porc_vtas_con_promo DESC"
 q9 <- dbGetQuery(con, query9)
+
+```
+
+```{r}
 q9 %>% 
   gt() %>% 
   tab_header(title = md('**Vendedores que aplicaron la mayor cantidad de promociones**'),
@@ -558,9 +568,9 @@ q9 %>%
   opt_align_table_header('left')
 ```
 
-## Query 10
+### Vendedores proactivos
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 query10 <- "WITH producto_venta_reseller AS (SELECT rsales.ProductKey, rsales.OrderQuantity, rsales.SalesOrderNumber, dr.ResellerName, rsales.PromotionKey
 FROM dbo.FactResellerSales rsales
 LEFT JOIN dbo.DimReseller dr ON rsales.ResellerKey = dr.ResellerKey
@@ -586,9 +596,9 @@ q10 <- dbGetQuery(con, query10)
 
 ```
 
-### Tabla
+##### Visualización 11
 
-```{r}
+```{r, echo = FALSE, eval = TRUE}
 q10 %>% 
   gt() %>% 
   tab_header(title = md('**Vendedores proactivos**'),
@@ -596,8 +606,13 @@ q10 %>%
   opt_align_table_header('left')
 ```
 
-### Scatterplot
 
-```{r}
+#### Scatterplot
 
+```{r, echo = FALSE, eval = TRUE}
+q10 %>% 
+  ggplot(aes(x=total_productos, y = total_ventas)) +
+  geom_point()
 ```
+
+## Conclusiones
