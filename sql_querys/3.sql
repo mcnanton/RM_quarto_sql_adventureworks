@@ -20,7 +20,7 @@ ambas AS
 (
 SELECT ProductKey, SpanishProductCategoryName, SpanishProductName, OrderQuantity, UnitPrice, CanalVenta, MontoVendido
 FROM reseller
-UNION 
+UNION ALL
 SELECT ProductKey, SpanishProductCategoryName, SpanishProductName, OrderQuantity, UnitPrice, CanalVenta, MontoVendido
 FROM internet
 ),
