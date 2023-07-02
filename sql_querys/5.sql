@@ -19,6 +19,6 @@ SELECT
   SUM(total) AS total_categoria
 FROM helper2
 GROUP BY SpanishProductCategoryName)
-SELECT SpanishProductCategoryName, con_promocion, sin_promocion, (con_promocion *100/total_categoria) as porc_con_promocion, (sin_promocion *100/total_categoria) as porc_sinn_promocion
+SELECT SpanishProductCategoryName, con_promocion, sin_promocion, (con_promocion *100/total_categoria) as porc_con_promocion, (sin_promocion *100/total_categoria) as porc_sin_promocion
 FROM helper3
 

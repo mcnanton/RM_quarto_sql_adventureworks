@@ -63,6 +63,60 @@ q10 <- dbGetQuery(con, query10)
 print(q10)
 ```
 
+## Query 5
+
+```{r}
+query5 <- "WITH helper1 AS (SELECT DISTINCT isales.SalesOrderNumber, categ.SpanishProductCategoryName,
+CASE WHEN isales.PromotionKey = '1' THEN 'sin_promocion'
+ELSE 'con_promocion'
+END AS 'con_sin_promo'
+FROM dbo.FactInternetSales isales
+LEFT JOIN dbo.DimProduct prod ON isales.ProductKey = prod.ProductKey
+LEFT JOIN dbo.DimProductSubcategory sub ON prod.ProductSubcategoryKey = sub.ProductSubcategoryKey
+LEFT JOIN dbo.DimProductCategory categ ON sub.ProductCategoryKey = categ.ProductCategoryKey
+WHERE YEAR(isales.OrderDate) IN (2010, 2011, 2012, 2013)),
+helper2 AS (
+SELECT SpanishProductCategoryName, con_sin_promo, COUNT(*) as total
+FROM helper1
+GROUP BY SpanishProductCategoryName, con_sin_promo),
+helper3 AS(
+SELECT
+  SpanishProductCategoryName,
+  SUM(CASE WHEN con_sin_promo = 'con_promocion' THEN total END) AS con_promocion,
+  SUM(CASE WHEN con_sin_promo = 'sin_promocion' THEN total END) AS sin_promocion,
+  SUM(total) AS total_categoria
+FROM helper2
+GROUP BY SpanishProductCategoryName)
+SELECT SpanishProductCategoryName, con_promocion, sin_promocion, (con_promocion *100/total_categoria) as porc_con_promocion, (sin_promocion *100/total_categoria) as porc_sin_promocion
+FROM helper3"
+
+q5 <- dbGetQuery(con, query5)
+q5 %>% 
+  gt() %>% 
+  tab_header(title = md('**Porcentaje de ventas totales que se hacen c/sin promoción**'),
+                     subtitle = 'Por categoría. Período 2010-2013' ) %>%
+  opt_align_table_header('left')
+```
+
+## Query 6
+
+```{r}
+query6 <- "SELECT isales.PromotionKey, COUNT(*) as total_uso_id_promo
+FROM dbo.FactInternetSales isales
+LEFT JOIN dbo.DimProduct prod ON isales.ProductKey = prod.ProductKey
+WHERE isales.PromotionKey != '1'
+AND YEAR(isales.OrderDate) IN (2010, 2011, 2012, 2013)
+GROUP BY isales.PromotionKey
+ORDER BY total_uso_id_promo DESC"
+
+q6 <- dbGetQuery(con, query6)
+q6 %>% 
+  gt() %>% 
+  tab_header(title = md('**Promociones más aplicadas**'),
+                     subtitle = 'Período 2010-2013' ) %>%
+  opt_align_table_header('left')
+```
+
 ## Query 7
 
 ```{r}
