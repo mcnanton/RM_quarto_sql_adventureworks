@@ -12,6 +12,7 @@ library(odbc)
 library(DBI)
 library(dplyr)
 library(ggplot2)
+library(gt)
 ```
 
 ```{r}
@@ -21,7 +22,6 @@ password <- gsub("password:", "", keys[2])
 ```
 
 ```{r}
-
 
 con <- dbConnect(odbc(),
                  Driver = "SQL Server",
@@ -63,4 +63,54 @@ q10 <- dbGetQuery(con, query10)
 print(q10)
 ```
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+## Query 7
+
+```{r}
+query7 <- "WITH orderid_reseller AS (SELECT DISTINCT rsales.SalesOrderNumber, dr.ResellerName
+FROM dbo.FactResellerSales rsales
+LEFT JOIN dbo.DimReseller dr ON rsales.ResellerKey = dr.ResellerKey
+WHERE YEAR(rsales.OrderDate) IN (2010, 2011, 2012, 2013))
+SELECT TOP 5 ResellerName, COUNT(*) as total_ventas
+FROM orderid_reseller
+GROUP BY ResellerName
+ORDER BY total_ventas DESC"
+q7 <- dbGetQuery(con, query7)
+q7 %>% 
+  gt() %>% 
+  tab_header(title = md('**Análisis exploratorio**'),
+                     subtitle = 'Distribución de las variables numéricas' ) %>%
+  opt_align_table_header('left')
+```
+
+## Query 8
+
+```{r}
+query8 <- "WITH orden_reseller_anio AS (
+    SELECT DISTINCT rsales.SalesOrderNumber, dr.ResellerName, YEAR(rsales.OrderDate) AS anio
+    FROM dbo.FactResellerSales rsales
+    LEFT JOIN dbo.DimReseller dr ON rsales.ResellerKey = dr.ResellerKey
+    WHERE YEAR(rsales.OrderDate) IN (2010, 2011, 2012, 2013)
+),
+top_resellers AS (
+    SELECT TOP 5 ResellerName, COUNT(*) AS total_ventas
+    FROM dbo.FactResellerSales rsales
+    LEFT JOIN dbo.DimReseller dr ON rsales.ResellerKey = dr.ResellerKey
+    WHERE YEAR(rsales.OrderDate) IN (2010, 2011, 2012, 2013)
+    GROUP BY ResellerName
+    ORDER BY COUNT(*) DESC
+)
+SELECT ora.ResellerName, anio, COUNT(*) AS total_ventas_reseller_anio
+FROM orden_reseller_anio ora
+JOIN top_resellers ON ora.ResellerName = top_resellers.ResellerName
+GROUP BY ora.ResellerName, anio"
+q8 <- dbGetQuery(con, query8)
+q8 %>% 
+  gt() %>% 
+  tab_header(title = md('**Recorrido de mejores resellers**'),
+                     subtitle = 'Año a año' ) %>%
+  opt_align_table_header('left')
+```
+
+### Línea de tiempo
+
+## Query 9
