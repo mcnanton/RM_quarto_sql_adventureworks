@@ -1,8 +1,18 @@
 ---
-title: "informe"
-format: pdf
-editor: visual
+title: "Informe"
+format:
+  pdf:
+    toc: true
+    number-sections: true
+    colorlinks: true
 ---
+
+```{r}
+library(odbc)
+library(DBI)
+library(dplyr)
+library(ggplot2)
+```
 
 ```{r}
 keys <- readLines("keys.txt", warn = FALSE)
@@ -11,8 +21,7 @@ password <- gsub("password:", "", keys[2])
 ```
 
 ```{r}
-library(odbc)
-library(DBI)
+
 
 con <- dbConnect(odbc(),
                  Driver = "SQL Server",
@@ -20,25 +29,38 @@ con <- dbConnect(odbc(),
                  Database = "AdventureWorksDW2019",
                  UID = username,
                  PWD = password)
+          
 ```
 
-## Quarto
+## Ejemplo query 10
+
+```{r}
+query10 <- "WITH producto_venta_reseller AS (SELECT rsales.ProductKey, rsales.OrderQuantity, rsales.SalesOrderNumber, dr.ResellerName, rsales.PromotionKey
+FROM dbo.FactResellerSales rsales
+LEFT JOIN dbo.DimReseller dr ON rsales.ResellerKey = dr.ResellerKey
+WHERE YEAR(rsales.OrderDate) IN (2010, 2011, 2012, 2013)),
+sod_reseller AS(
+    SELECT DISTINCT SalesOrderNumber, ResellerName
+    FROM producto_venta_reseller
+),
+total_vtas_reseller AS(
+    SELECT ResellerName, COUNT(*) as total_ventas
+    FROM producto_venta_reseller
+    GROUP BY ResellerName
+),
+total_items_reseller AS (
+    SELECT ResellerName, SUM(OrderQuantity) as total_productos
+    FROM producto_venta_reseller
+    GROUP BY ResellerName
+)
+SELECT tvr.ResellerName, total_ventas, tir.total_productos
+FROM total_vtas_reseller tvr
+LEFT JOIN total_items_reseller tir ON tvr.ResellerName = tir.ResellerName"
+```
+
+```{r}
+q10 <- dbGetQuery(con, query10)
+print(q10)
+```
 
 Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
-```{r}
-1 + 1
-```
-
-You can add options to executable code like this
-
-```{r}
-#| echo: false
-2 * 2
-```
-
-The `echo: false` option disables the printing of code (only output is displayed).
