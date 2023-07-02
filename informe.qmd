@@ -4,6 +4,24 @@ format: pdf
 editor: visual
 ---
 
+```{r}
+keys <- readLines("keys.txt", warn = FALSE)
+username <- gsub("username:", "", keys[1])
+password <- gsub("password:", "", keys[2])
+```
+
+```{r}
+library(odbc)
+library(DBI)
+
+con <- dbConnect(odbc(),
+                 Driver = "SQL Server",
+                 Server = "157.92.26.17,1443",
+                 Database = "AdventureWorksDW2019",
+                 UID = username,
+                 PWD = password)
+```
+
 ## Quarto
 
 Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
