@@ -22,7 +22,6 @@ password <- gsub("password:", "", keys[2])
 ```
 
 ```{r}
-
 con <- dbConnect(odbc(),
                  Driver = "SQL Server",
                  Server = "157.92.26.17,1443",
@@ -32,38 +31,352 @@ con <- dbConnect(odbc(),
           
 ```
 
-## Ejemplo query 10
+# Informe: DW AdventureWorks2019
+
+## Exploración general
+
+### Análisis de ventas por trimestre
 
 ```{r}
-query10 <- "WITH producto_venta_reseller AS (SELECT rsales.ProductKey, rsales.OrderQuantity, rsales.SalesOrderNumber, dr.ResellerName, rsales.PromotionKey
-FROM dbo.FactResellerSales rsales
-LEFT JOIN dbo.DimReseller dr ON rsales.ResellerKey = dr.ResellerKey
-WHERE YEAR(rsales.OrderDate) IN (2010, 2011, 2012, 2013)),
-sod_reseller AS(
-    SELECT DISTINCT SalesOrderNumber, ResellerName
-    FROM producto_venta_reseller
+query1 <- "
+--- QUERY 1 
+
+--- Tabla donde cada fila es una combinacion de año-trimestre-canal de ventas.
+--- col1 = año. col2= trimestre. col3 = canal de ventas. col4 = $$ vendido ese trimestre.
+
+WITH reseller AS
+(
+SELECT dd.CalendarYear, dd.CalendarQuarter, frs.SalesAmount, 'Reseller Sales' AS CanalVenta
+FROM AdventureWorksDW2019.dbo.FactResellerSales frs INNER JOIN
+AdventureWorksDW2019.dbo.DimDate dd ON frs.OrderDateKey = dd.DateKey
 ),
-total_vtas_reseller AS(
-    SELECT ResellerName, COUNT(*) as total_ventas
-    FROM producto_venta_reseller
-    GROUP BY ResellerName
+
+internet AS 
+(
+SELECT dd.CalendarYear, dd.CalendarQuarter, fis.SalesAmount, 'Internet Sales' AS CanalVenta
+FROM AdventureWorksDW2019.dbo.FactInternetSales fis  INNER JOIN
+AdventureWorksDW2019.dbo.DimDate dd ON fis.OrderDateKey = dd.DateKey
 ),
-total_items_reseller AS (
-    SELECT ResellerName, SUM(OrderQuantity) as total_productos
-    FROM producto_venta_reseller
-    GROUP BY ResellerName
+
+ambas AS 
+(
+SELECT CalendarYear, CalendarQuarter, SalesAmount, CanalVenta
+FROM reseller
+UNION ALL
+SELECT CalendarYear, CalendarQuarter, SalesAmount, CanalVenta
+FROM internet
 )
-SELECT tvr.ResellerName, total_ventas, tir.total_productos
-FROM total_vtas_reseller tvr
-LEFT JOIN total_items_reseller tir ON tvr.ResellerName = tir.ResellerName"
+
+SELECT CalendarYear, CalendarQuarter, CanalVenta, SUM(SalesAmount) AS SalesAmount
+FROM ambas
+GROUP BY CalendarYear, CalendarQuarter, CanalVenta
+ORDER BY CalendarYear, CalendarQuarter"
+q1 <- dbGetQuery(con, query1)
+
+```
+
+#### Visualización tabular
+
+```{r}
+q1 %>% 
+  gt() %>% 
+  tab_header(title = md('**Ventas por trimestre**'),
+                     subtitle = 'Internet y Resellers' ) %>%
+  opt_align_table_header('left')
 ```
 
 ```{r}
-q10 <- dbGetQuery(con, query10)
-print(q10)
+
 ```
 
-## Query 5
+#### Serie de tiempo
+
+```{r}
+q1 %>% 
+  mutate(CalendarYear = factor(CalendarYear),
+         CalendarQuarter = factor(CalendarQuarter, levels = c("1", "2", "3", "4"))) %>% 
+  ggplot(aes(x = reorder(interaction(CalendarYear, CalendarQuarter), as.numeric(CalendarYear)), y = SalesAmount, fill = CanalVenta)) +
+    geom_bar(stat="identity") +
+  labs(x = "Trimestre", y = "Total vendido") + 
+  theme(axis.text.x = element_text(angle = 60, vjust = 0.5, hjust=1))
+```
+
+### Las categorías más exitosas
+
+```{r}
+query2a <- "
+WITH reseller AS
+(
+SELECT dp.ProductSubcategoryKey, dps.SpanishProductSubcategoryName, frs.OrderQuantity, 'Reseller Sales' AS CanalVenta  
+FROM ((AdventureWorksDW2019.dbo.FactResellerSales frs INNER JOIN
+AdventureWorksDW2019.dbo.DimProduct dp ON frs.ProductKey = dp.ProductKey) 
+INNER JOIN AdventureWorksDW2019.dbo.DimProductSubcategory dps 
+ON dp.ProductSubcategoryKey = dps.ProductSubcategoryKey) INNER JOIN 
+AdventureWorksDW2019.dbo.DimDate dd ON frs.OrderDateKey = dd.DateKey
+WHERE dd.CalendarYear IN (2010, 2011, 2012, 2013)
+),
+
+internet AS 
+(
+SELECT dp.ProductSubcategoryKey, dps.SpanishProductSubcategoryName, fis.OrderQuantity, 'Internet Sales' AS CanalVenta
+FROM ((AdventureWorksDW2019.dbo.FactInternetSales fis INNER JOIN
+AdventureWorksDW2019.dbo.DimProduct dp ON fis.ProductKey = dp.ProductKey) 
+INNER JOIN AdventureWorksDW2019.dbo.DimProductSubcategory dps 
+ON dp.ProductSubcategoryKey = dps.ProductSubcategoryKey) INNER JOIN 
+AdventureWorksDW2019.dbo.DimDate dd ON fis.OrderDateKey = dd.DateKey
+WHERE dd.CalendarYear IN (2010, 2011, 2012, 2013)
+),
+
+ambas AS 
+(
+SELECT ProductSubcategoryKey, SpanishProductSubcategoryName, OrderQuantity, CanalVenta
+FROM reseller
+UNION ALL
+SELECT ProductSubcategoryKey, SpanishProductSubcategoryName, OrderQuantity, CanalVenta
+FROM internet
+),
+
+ambas_agrupadas AS
+(
+SELECT ProductSubcategoryKey, SpanishProductSubcategoryName, CanalVenta, SUM(OrderQuantity) AS ProductosVendidos_PorCanalVenta
+FROM ambas
+GROUP BY ProductSubcategoryKey, SpanishProductSubcategoryName, CanalVenta
+)
+
+SELECT SpanishProductSubcategoryName, CanalVenta, ProductosVendidos_PorCanalVenta,
+SUM(ProductosVendidos_PorCanalVenta) OVER(PARTITION BY SpanishProductSubcategoryName) AS ProductosVendidos_PorSubCategoria
+FROM ambas_agrupadas
+ORDER BY ProductosVendidos_PorSubCategoria DESC
+"
+q2a <- dbGetQuery(con, query2a)
+```
+
+```{r}
+q2a %>% 
+  gt() %>% 
+  tab_header(title = md('**Subcategorías de productos con más ventas**'),
+                     subtitle = 'Internet y Resellers. Período 2010-2013' ) %>%
+  opt_align_table_header('left')
+```
+
+scs
+
+```{r}
+query2b <- "
+WITH reseller AS
+(
+SELECT dpc.ProductCategoryKey, dpc.SpanishProductCategoryName, frs.OrderQuantity, 'Reseller Sales' AS CanalVenta  
+FROM (((AdventureWorksDW2019.dbo.FactResellerSales frs INNER JOIN
+AdventureWorksDW2019.dbo.DimProduct dp ON frs.ProductKey = dp.ProductKey) 
+INNER JOIN AdventureWorksDW2019.dbo.DimProductSubcategory dps 
+ON dp.ProductSubcategoryKey = dps.ProductSubcategoryKey) INNER JOIN 
+AdventureWorksDW2019.dbo.DimProductCategory dpc ON dps.ProductCategoryKey = dpc.ProductCategoryKey)
+INNER JOIN 
+AdventureWorksDW2019.dbo.DimDate dd ON frs.OrderDateKey = dd.DateKey
+WHERE dd.CalendarYear IN (2010, 2011, 2012, 2013)
+),
+
+internet AS 
+(
+SELECT dpc.ProductCategoryKey, dpc.SpanishProductCategoryName, fis.OrderQuantity, 'Internet Sales' AS CanalVenta  
+FROM (((AdventureWorksDW2019.dbo.FactInternetSales fis INNER JOIN
+AdventureWorksDW2019.dbo.DimProduct dp ON fis.ProductKey = dp.ProductKey) 
+INNER JOIN AdventureWorksDW2019.dbo.DimProductSubcategory dps 
+ON dp.ProductSubcategoryKey = dps.ProductSubcategoryKey) INNER JOIN 
+AdventureWorksDW2019.dbo.DimProductCategory dpc ON dps.ProductCategoryKey = dpc.ProductCategoryKey)
+INNER JOIN 
+AdventureWorksDW2019.dbo.DimDate dd ON fis.OrderDateKey = dd.DateKey
+WHERE dd.CalendarYear IN (2010, 2011, 2012, 2013)
+),
+
+ambas AS 
+(
+SELECT ProductCategoryKey, SpanishProductCategoryName, OrderQuantity, CanalVenta
+FROM reseller
+UNION ALL
+SELECT ProductCategoryKey, SpanishProductCategoryName, OrderQuantity, CanalVenta
+FROM internet
+),
+
+ambas_agrupadas AS
+(
+SELECT ProductCategoryKey, SpanishProductCategoryName, CanalVenta, SUM(OrderQuantity) AS ProductosVendidos_PorCanalVenta
+FROM ambas
+GROUP BY ProductCategoryKey, SpanishProductCategoryName, CanalVenta
+)
+
+SELECT SpanishProductCategoryName, CanalVenta, ProductosVendidos_PorCanalVenta,
+SUM(ProductosVendidos_PorCanalVenta) OVER(PARTITION BY SpanishProductCategoryName) AS ProductosVendidos_PorCategoria
+FROM ambas_agrupadas
+ORDER BY ProductosVendidos_PorCategoria DESC
+"
+q2b <- dbGetQuery(con, query2b)
+```
+
+```{r}
+q2b %>% 
+    gt() %>%
+  tab_header(title = md('**Ventas por categoría**'),
+                     subtitle = 'Internet y Resellers. Período 2010-2013' ) %>%
+  opt_align_table_header('left')
+```
+
+#### Productos más vendidos en cada categoría
+
+```{r}
+query3 <- "
+WITH reseller AS
+(
+SELECT frs.ProductKey, prod.SpanishProductName, frs.OrderQuantity, frs.UnitPrice, categ.SpanishProductCategoryName, 'Reseller Sales' AS CanalVenta, UnitPrice*OrderQuantity AS MontoVendido
+FROM dbo.FactResellerSales frs
+LEFT JOIN dbo.DimProduct prod ON frs.ProductKey = prod.ProductKey
+LEFT JOIN dbo.DimProductSubcategory sub ON prod.ProductSubcategoryKey = sub.ProductSubcategoryKey
+LEFT JOIN dbo.DimProductCategory categ ON sub.ProductCategoryKey = categ.ProductCategoryKey
+),
+
+internet AS 
+(
+SELECT fis.ProductKey, prod.SpanishProductName, fis.OrderQuantity, fis.UnitPrice, categ.SpanishProductCategoryName, 'Internet Sales' AS CanalVenta, UnitPrice*OrderQuantity AS MontoVendido
+FROM dbo.FactInternetSales fis
+LEFT JOIN dbo.DimProduct prod ON fis.ProductKey = prod.ProductKey
+LEFT JOIN dbo.DimProductSubcategory sub ON prod.ProductSubcategoryKey = sub.ProductSubcategoryKey
+LEFT JOIN dbo.DimProductCategory categ ON sub.ProductCategoryKey = categ.ProductCategoryKey
+),
+
+ambas AS 
+(
+SELECT ProductKey, SpanishProductCategoryName, SpanishProductName, OrderQuantity, UnitPrice, CanalVenta, MontoVendido
+FROM reseller
+UNION ALL
+SELECT ProductKey, SpanishProductCategoryName, SpanishProductName, OrderQuantity, UnitPrice, CanalVenta, MontoVendido
+FROM internet
+),
+
+tabla_sumario AS(
+SELECT *,
+SUM(OrderQuantity) OVER(PARTITION BY SpanishProductCategoryName, CanalVenta) AS n_prod_vendidos_categoria_canal,
+SUM(OrderQuantity) OVER(PARTITION BY SpanishProductCategoryName, CanalVenta, ProductKey) AS ventas_producto_categoria_canal,
+SUM(MontoVendido) OVER(PARTITION BY SpanishProductCategoryName, CanalVenta) AS monto_vendido_categoria_canal,
+SUM(MontoVendido) OVER(PARTITION BY SpanishProductCategoryName, CanalVenta, ProductKey) AS monto_vendido_producto_categoria_canal
+FROM ambas),
+
+tabla_sumario_producto AS (
+SELECT DISTINCT CanalVenta, SpanishProductCategoryName, ProductKey, SpanishProductName, n_prod_vendidos_categoria_canal, ventas_producto_categoria_canal, monto_vendido_categoria_canal, monto_vendido_producto_categoria_canal
+FROM tabla_sumario),
+
+rn_tabla_sumario_producto AS(
+SELECT *, (monto_vendido_producto_categoria_canal*100/monto_vendido_categoria_canal) AS porc_monetario_categoria,
+ROW_NUMBER() OVER(PARTITION BY SpanishProductCategoryName, CanalVenta ORDER BY ventas_producto_categoria_canal DESC) AS ranking_cantidad_pvendidos_categoria
+FROM tabla_sumario_producto
+) 
+SELECT *
+FROM rn_tabla_sumario_producto
+WHERE ranking_cantidad_pvendidos_categoria < 3
+-- Uso intencional del row number en vez de dense_rank dado que en el canal internet sales muchos productos fueron vendidos solo 1 vez y todos cumplen el where de la línea anterior
+"
+q3 <- dbGetQuery(con, query3)
+```
+
+```{r}
+q3 %>% 
+    gt() %>%
+  tab_header(title = md('**Productos más vendidos por categoría y canal**'),
+                     subtitle = 'Top 3. Internet y Resellers. Período 2010-2013' ) %>%
+  opt_align_table_header('left')
+```
+
+## Análisis de promociones en ventas online
+
+### 
+Ventas por trimestre en volumen de dinero
+
+```{r}
+query4 <- "WITH r_sin_promocion AS
+(
+SELECT dd.CalendarYear, dd.CalendarQuarter, frs.SalesAmount, 'Sin Promocion' AS Promocion_SiNo
+FROM (AdventureWorksDW2019.dbo.FactResellerSales frs INNER JOIN
+AdventureWorksDW2019.dbo.DimDate dd ON frs.OrderDateKey = dd.DateKey)
+INNER JOIN AdventureWorksDW2019.dbo.DimPromotion dp ON frs.PromotionKey = dp.PromotionKey
+WHERE dd.CalendarYear IN (2010, 2011, 2012, 2013) AND 
+dp.PromotionKey = 1
+
+),
+
+r_con_promocion AS 
+(
+SELECT dd.CalendarYear, dd.CalendarQuarter, frs.SalesAmount, 'Con Promocion' AS Promocion_SiNo
+FROM (AdventureWorksDW2019.dbo.FactResellerSales frs INNER JOIN
+AdventureWorksDW2019.dbo.DimDate dd ON frs.OrderDateKey = dd.DateKey)
+INNER JOIN AdventureWorksDW2019.dbo.DimPromotion dp ON frs.PromotionKey = dp.PromotionKey
+WHERE dd.CalendarYear IN (2010, 2011, 2012, 2013) AND 
+dp.PromotionKey IN (2,3,4,5,6,7,8,9,10,11,12,13,14,15,16)
+),
+
+i_sin_promocion AS
+(
+SELECT dd.CalendarYear, dd.CalendarQuarter, fis.SalesAmount, 'Sin Promocion' AS Promocion_SiNo
+FROM (AdventureWorksDW2019.dbo.FactInternetSales fis  INNER JOIN
+AdventureWorksDW2019.dbo.DimDate dd ON fis.OrderDateKey = dd.DateKey)
+INNER JOIN AdventureWorksDW2019.dbo.DimPromotion dp ON fis.PromotionKey = dp.PromotionKey
+WHERE dd.CalendarYear IN (2010, 2011, 2012, 2013) AND 
+dp.PromotionKey = 1
+),
+
+i_con_promocion AS 
+(
+SELECT dd.CalendarYear, dd.CalendarQuarter, fis.SalesAmount, 'Con Promocion' AS Promocion_SiNo
+FROM (AdventureWorksDW2019.dbo.FactInternetSales fis INNER JOIN
+AdventureWorksDW2019.dbo.DimDate dd ON fis.OrderDateKey = dd.DateKey)
+INNER JOIN AdventureWorksDW2019.dbo.DimPromotion dp ON fis.PromotionKey = dp.PromotionKey
+WHERE dd.CalendarYear IN (2010, 2011, 2012, 2013) AND 
+dp.PromotionKey IN (2,3,4,5,6,7,8,9,10,11,12,13,14,15,16)
+), 
+
+todas AS 
+(
+SELECT CalendarYear, CalendarQuarter, SalesAmount, Promocion_SiNo
+FROM r_sin_promocion
+UNION ALL
+SELECT CalendarYear, CalendarQuarter, SalesAmount, Promocion_SiNo
+FROM r_con_promocion
+UNION ALL
+SELECT CalendarYear, CalendarQuarter, SalesAmount, Promocion_SiNo
+FROM i_sin_promocion
+UNION ALL
+SELECT CalendarYear, CalendarQuarter, SalesAmount, Promocion_SiNo
+FROM i_con_promocion
+)
+
+SELECT CalendarYear, CalendarQuarter, Promocion_SiNo, SUM(SalesAmount) AS SalesAmount
+FROM todas
+GROUP BY CalendarYear, CalendarQuarter, Promocion_SiNo
+ORDER BY CalendarYear, CalendarQuarter"
+q4 <- dbGetQuery(con, query4)
+```
+
+#### Visualización tabular
+
+```{r}
+q4 %>% 
+    gt() %>%
+  tab_header(title = md('**Ventas con y sin descuento por año y trimestre**'),
+                     subtitle = 'Internet y Resellers. Período 2010-2013' ) %>%
+  opt_align_table_header('left')
+```
+
+#### Serie de tiempo
+
+```{r}
+q4 %>% 
+  mutate(CalendarYear = factor(CalendarYear),
+         CalendarQuarter = factor(CalendarQuarter, levels = c("1", "2", "3", "4"))) %>% 
+  ggplot(aes(x = reorder(interaction(CalendarYear, CalendarQuarter), as.numeric(CalendarYear)), y = SalesAmount, fill = Promocion_SiNo)) +
+    geom_bar(stat="identity") +
+  labs(x = "Trimestre", y = "Total vendido") + 
+  theme(axis.text.x = element_text(angle = 60, vjust = 0.5, hjust=1))
+```
+
+### Aplicación de promociones por categoría
 
 ```{r}
 query5 <- "WITH helper1 AS (SELECT DISTINCT isales.SalesOrderNumber, categ.SpanishProductCategoryName,
@@ -75,30 +388,41 @@ LEFT JOIN dbo.DimProduct prod ON isales.ProductKey = prod.ProductKey
 LEFT JOIN dbo.DimProductSubcategory sub ON prod.ProductSubcategoryKey = sub.ProductSubcategoryKey
 LEFT JOIN dbo.DimProductCategory categ ON sub.ProductCategoryKey = categ.ProductCategoryKey
 WHERE YEAR(isales.OrderDate) IN (2010, 2011, 2012, 2013)),
+
 helper2 AS (
 SELECT SpanishProductCategoryName, con_sin_promo, COUNT(*) as total
 FROM helper1
 GROUP BY SpanishProductCategoryName, con_sin_promo),
+
 helper3 AS(
-SELECT
-  SpanishProductCategoryName,
-  SUM(CASE WHEN con_sin_promo = 'con_promocion' THEN total END) AS con_promocion,
-  SUM(CASE WHEN con_sin_promo = 'sin_promocion' THEN total END) AS sin_promocion,
-  SUM(total) AS total_categoria
+SELECT SpanishProductCategoryName,
+SUM(CASE WHEN con_sin_promo = 'con_promocion' THEN total END) AS productos_con_promocion,
+SUM(CASE WHEN con_sin_promo = 'sin_promocion' THEN total END) AS productos_sin_promocion,
+SUM(total) AS total_categoria
 FROM helper2
 GROUP BY SpanishProductCategoryName)
-SELECT SpanishProductCategoryName, con_promocion, sin_promocion, (con_promocion *100/total_categoria) as porc_con_promocion, (sin_promocion *100/total_categoria) as porc_sin_promocion
+
+SELECT SpanishProductCategoryName, total_categoria, productos_con_promocion, productos_sin_promocion, FORMAT((productos_con_promocion * 1.0 /total_categoria), 'P') as porc_con_promocion, FORMAT((productos_sin_promocion * 1.0 /total_categoria), 'P') as porc_sin_promocion
 FROM helper3"
 
 q5 <- dbGetQuery(con, query5)
 q5 %>% 
   gt() %>% 
   tab_header(title = md('**Porcentaje de ventas totales que se hacen c/sin promoción**'),
-                     subtitle = 'Por categoría. Período 2010-2013' ) %>%
+                     subtitle = 'Por categoría Internet Sales. Período 2010-2013' ) %>%
   opt_align_table_header('left')
 ```
 
-## Query 6
+```{r}
+q5 %>% 
+  ggplot(aes(x = SpanishProductCategoryName)) +
+    geom_bar(aes(y = productos_sin_promocion), fill = "grey", colour = "blue", position = "dodge", stat = "identity") +
+  geom_bar(aes(y = productos_con_promocion), fill = "grey", colour = "red", position = "dodge", stat = "identity") +
+  labs(x = "Categoría", y = "Total") +
+  ggtitle("Aplicación de promociones a productos por categoría") 
+```
+
+### Las promociones más aplicadas
 
 ```{r}
 query6 <- "SELECT isales.PromotionKey, COUNT(*) as total_uso_id_promo
@@ -113,11 +437,30 @@ q6 <- dbGetQuery(con, query6)
 q6 %>% 
   gt() %>% 
   tab_header(title = md('**Promociones más aplicadas**'),
-                     subtitle = 'Período 2010-2013' ) %>%
+                     subtitle = 'Internet Sales. Período 2010-2013' ) %>%
   opt_align_table_header('left')
 ```
 
-## Query 7
+```{r}
+query6b <- "SELECT SpanishPromotionName, SpanishPromotionType, SpanishPromotionCategory
+FROM dbo.DimPromotion
+WHERE PromotionKey IN (SELECT isales.PromotionKey
+FROM dbo.FactInternetSales isales
+LEFT JOIN dbo.DimProduct prod ON isales.ProductKey = prod.ProductKey
+WHERE isales.PromotionKey != '1'
+AND YEAR(isales.OrderDate) IN (2010, 2011, 2012, 2013))"
+q6b <- dbGetQuery(con, query6b)
+```
+
+```{r}
+q6b %>% 
+  gt() %>% 
+  tab_header(title = md('**Detalle de las promociones más utilizadas**'),
+                     subtitle = 'Internet Sales. Período 2010-2013' ) %>%
+  opt_align_table_header('left')
+```
+
+## Resellers
 
 ```{r}
 query7 <- "WITH orderid_reseller AS (SELECT DISTINCT rsales.SalesOrderNumber, dr.ResellerName
@@ -129,14 +472,18 @@ FROM orderid_reseller
 GROUP BY ResellerName
 ORDER BY total_ventas DESC"
 q7 <- dbGetQuery(con, query7)
+
+```
+
+```{r}
 q7 %>% 
   gt() %>% 
-  tab_header(title = md('**Análisis exploratorio**'),
-                     subtitle = 'Distribución de las variables numéricas' ) %>%
+  tab_header(title = md('**Los mejores resellers del período**'),
+                     subtitle = 'Recorte top5. Reseller Sales. 2010-2013' ) %>%
   opt_align_table_header('left')
 ```
 
-## Query 8
+### Evolución de los mejores resellers
 
 ```{r}
 query8 <- "WITH orden_reseller_anio AS (
@@ -166,6 +513,10 @@ q8 %>%
 ```
 
 ### Línea de tiempo
+
+```{r}
+
+```
 
 ## Query 9
 
