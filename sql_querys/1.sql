@@ -22,7 +22,7 @@ ambas AS
 (
 SELECT CalendarYear, CalendarQuarter, SalesAmount, CanalVenta
 FROM reseller
-UNION 
+UNION ALL
 SELECT CalendarYear, CalendarQuarter, SalesAmount, CanalVenta
 FROM internet
 )

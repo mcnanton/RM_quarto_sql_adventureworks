@@ -29,7 +29,7 @@ ambas AS
 (
 SELECT ProductSubcategoryKey, SpanishProductSubcategoryName, OrderQuantity, CanalVenta
 FROM reseller
-UNION 
+UNION ALL
 SELECT ProductSubcategoryKey, SpanishProductSubcategoryName, OrderQuantity, CanalVenta
 FROM internet
 ),
@@ -42,7 +42,7 @@ GROUP BY ProductSubcategoryKey, SpanishProductSubcategoryName, CanalVenta
 )
 
 SELECT SpanishProductSubcategoryName, CanalVenta, ProductosVendidos_PorCanalVenta,
-SUM(ProductosVendidos_PorCanalVenta) OVER(PARTITION BY SpanishProductSubcategoryName) AS ProductosVendidos_PorCategoria
+SUM(ProductosVendidos_PorCanalVenta) OVER(PARTITION BY SpanishProductSubcategoryName) AS ProductosVendidos_PorSubCategoria
 FROM ambas_agrupadas
-ORDER BY ProductosVendidos_Porcategoria DESC
+ORDER BY ProductosVendidos_PorSubCategoria DESC
 
