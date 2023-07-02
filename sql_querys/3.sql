@@ -32,9 +32,15 @@ SUM(OrderQuantity) OVER(PARTITION BY SpanishProductCategoryName, CanalVenta, Pro
 FROM ambas),
 
 tabla_sumario_producto AS (
-SELECT DISTINCT CanalVenta, SpanishProductCategoryName, ProductKey, SpanishProductName, n_prod_vendidos_categoria_canal, ventas_producto_categoria_canal,
-RANK() OVER(PARTITION BY SpanishProductCategoryName, CanalVenta ORDER BY ventas_producto_categoria_canal DESC) AS ranking_cantidad_pvendidos_categoria
-FROM tabla_sumario)
-SELECT *
+SELECT DISTINCT CanalVenta, SpanishProductCategoryName, ProductKey, SpanishProductName, n_prod_vendidos_categoria_canal, ventas_producto_categoria_canal
+FROM tabla_sumario),
+
+rn_tabla_sumario_producto AS(
+SELECT *,
+ROW_NUMBER() OVER(PARTITION BY SpanishProductCategoryName, CanalVenta ORDER BY ventas_producto_categoria_canal DESC) AS ranking_cantidad_pvendidos_categoria
 FROM tabla_sumario_producto
-WHERE ranking_cantidad_pvendidos_categoria< 5
+) 
+SELECT *
+FROM rn_tabla_sumario_producto
+WHERE ranking_cantidad_pvendidos_categoria < 6
+-- Uso intencional del row number dado que en el canal internet sales muchos productos fueron vendidos solo 1 vez 
