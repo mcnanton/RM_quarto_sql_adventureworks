@@ -1,27 +1,40 @@
-WITH tabla_granular_producto AS 
-(SELECT p.SpanishProductName, categ.SpanishProductCategoryName, 
-CASE WHEN rsales.EmployeeKey IS NULL THEN 'Internet'
-ELSE 'Reseller'
-END AS 'canal_venta',
-COALESCE (rsales.OrderQuantity, isales.OrderQuantity) as cantidad,
-COALESCE (rsales.UnitPrice, isales.UnitPrice) as precio
-FROM dbo.DimProduct p
-LEFT JOIN dbo.DimProductSubcategory s ON p.ProductSubcategoryKey = s.ProductSubcategoryKey
-LEFT JOIN dbo.DimProductCategory categ ON s.ProductCategoryKey = categ.ProductCategoryKey
-LEFT JOIN dbo.FactResellerSales rsales ON p.ProductKey = rsales.ProductKey 
-LEFT JOIN dbo.FactInternetSales isales on p.ProductKey = isales.ProductKey
-WHERE YEAR(isales.OrderDate) IN (2010, 2011, 2012, 2013)),
-tabla_producto_categoria AS(
-SELECT gr.SpanishProductName, gr.SpanishProductCategoryName, gr.canal_venta, gr.precio, SUM(gr.cantidad) AS total_cantidad, gr.precio * SUM(gr.cantidad) AS importe_producto
-FROM tabla_granular_producto gr
-GROUP BY gr.SpanishProductName, gr.SpanishProductCategoryName, gr.canal_venta, gr.precio),
-tabla_sumario AS (
+WITH reseller AS
+(
+SELECT frs.ProductKey, prod.SpanishProductName, frs.OrderQuantity, frs.UnitPrice, categ.SpanishProductCategoryName, 'Reseller Sales' AS CanalVenta
+FROM dbo.FactResellerSales frs
+LEFT JOIN dbo.DimProduct prod ON frs.ProductKey = prod.ProductKey
+LEFT JOIN dbo.DimProductSubcategory sub ON prod.ProductSubcategoryKey = sub.ProductSubcategoryKey
+LEFT JOIN dbo.DimProductCategory categ ON sub.ProductCategoryKey = categ.ProductCategoryKey
+),
+
+internet AS 
+(
+SELECT fis.ProductKey, prod.SpanishProductName, fis.OrderQuantity, fis.UnitPrice, categ.SpanishProductCategoryName, 'Internet Sales' AS CanalVenta
+FROM dbo.FactInternetSales fis
+LEFT JOIN dbo.DimProduct prod ON fis.ProductKey = prod.ProductKey
+LEFT JOIN dbo.DimProductSubcategory sub ON prod.ProductSubcategoryKey = sub.ProductSubcategoryKey
+LEFT JOIN dbo.DimProductCategory categ ON sub.ProductCategoryKey = categ.ProductCategoryKey
+),
+
+ambas AS 
+(
+SELECT ProductKey, SpanishProductCategoryName, SpanishProductName, OrderQuantity, UnitPrice, CanalVenta
+FROM reseller
+UNION 
+SELECT ProductKey, SpanishProductCategoryName, SpanishProductName, OrderQuantity, UnitPrice, CanalVenta
+FROM internet
+),
+
+tabla_sumario AS(
 SELECT *,
-ROW_NUMBER() OVER(PARTITION BY SpanishProductCategoryName ORDER BY total_cantidad DESC) AS ranking_cantidad_pvendidos_categoria,
-SUM(importe_producto) OVER(PARTITION BY SpanishProductCategoryName) AS total_importe_para_categoria,
-SUM(importe_producto) OVER() AS total_importe_categoria
-FROM tabla_producto_categoria)
-SELECT SpanishProductName, SpanishProductCategoryName, ranking_cantidad_pvendidos_categoria, 
-importe_producto*100/total_importe_para_categoria as porc_importe_producto_categoria
-FROM tabla_sumario
-WHERE ranking_cantidad_pvendidos_categoria < 11
+SUM(OrderQuantity) OVER(PARTITION BY SpanishProductCategoryName, CanalVenta) AS n_prod_vendidos_categoria_canal,
+SUM(OrderQuantity) OVER(PARTITION BY SpanishProductCategoryName, CanalVenta, ProductKey) AS ventas_producto_categoria_canal
+FROM ambas),
+
+tabla_sumario_producto AS (
+SELECT DISTINCT CanalVenta, SpanishProductCategoryName, ProductKey, SpanishProductName, n_prod_vendidos_categoria_canal, ventas_producto_categoria_canal,
+RANK() OVER(PARTITION BY SpanishProductCategoryName, CanalVenta ORDER BY ventas_producto_categoria_canal DESC) AS ranking_cantidad_pvendidos_categoria
+FROM tabla_sumario)
+SELECT *
+FROM tabla_sumario_producto
+WHERE ranking_cantidad_pvendidos_categoria< 5
