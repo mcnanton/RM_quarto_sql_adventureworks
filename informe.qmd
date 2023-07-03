@@ -1,6 +1,6 @@
 ---
 title: "Informe: DW AdventureWorks2019"
-author: "María Nanton, Magalí Rodríguez Pires"
+author: "María Nanton, Magalí Rodrígues Pires"
 format:
   pdf:
     toc: false
