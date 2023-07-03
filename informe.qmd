@@ -85,7 +85,9 @@ q1 %>%
   ggplot(aes(x = reorder(interaction(CalendarYear, CalendarQuarter), as.numeric(CalendarYear)), y = SalesAmount, fill = CanalVenta)) +
     geom_bar(stat="identity") +
   labs(x = "Trimestre", y = "Total vendido") + 
-  theme(axis.text.x = element_text(angle = 60, vjust = 0.5, hjust=1))
+  ggtitle("Evolución de ventas por trimestre") +
+  theme_minimal() +
+    theme(axis.text.x = element_text(angle = 60, vjust = 0.5, hjust=1)) 
 ```
 
 ### Las categorías más exitosas
@@ -133,9 +135,9 @@ GROUP BY ProductSubcategoryKey, SpanishProductSubcategoryName, CanalVenta
 )
 
 SELECT SpanishProductSubcategoryName as Subcategoría, CanalVenta, ProductosVendidos_PorCanalVenta as N_Vendidos_canal,
-SUM(ProductosVendidos_PorCanalVenta) OVER(PARTITION BY SpanishProductSubcategoryName) AS ProductosVendidos_PorSubCategoria
+SUM(ProductosVendidos_PorCanalVenta) OVER(PARTITION BY SpanishProductSubcategoryName) AS N_Vendidos_Subcateg
 FROM ambas_agrupadas
-ORDER BY ProductosVendidos_PorSubCategoria DESC
+ORDER BY N_Vendidos_Subcateg DESC
 "
 q2a <- dbGetQuery(con, query2a)
 ```
@@ -216,7 +218,13 @@ q2b %>%
 
 #### Productos más vendidos en cada categoría
 
-##### Visualización 5 PENDIENTE
+##### Visualización 5 
+
+Algunos puntos interesantes sobre la siguiente tabla:
+
+-   Se observa como la categoría Accesorio es la que posee ítems en su top3 que superan el 10% en el porcentaje de ingresos que aportan a su categoría-canal. Esto puede deberse a una poca variedad de productos en esa categoría y canal, o a tácticas de marketing exitosas que lograron insertar esos productos.
+
+-   Algo análogo sucede en la categorías Prenda y Componente para ambos canales: existen productos que concentran el 7, 8 o 9% del ingreso por esa categoría y canal. La categoría Bicicletas es la más atomizada
 
 ```{r, echo = FALSE, eval = TRUE}
 query3 <- "
@@ -352,7 +360,7 @@ q4 <- dbGetQuery(con, query4)
 
 ##### Visualización 6
 
-Se observa cómo la venta promocional es aún una estrategia de venta muy marginal, si bien se utiliza más año a año.
+Se observa cómo la venta promocional es aún una estrategia de venta muy marginal, que tuvo un pico en el primer trimestre del 2013.
 
 ```{r, echo = FALSE, eval = TRUE}
 q4 %>% 
@@ -361,14 +369,16 @@ q4 %>%
   ggplot(aes(x = reorder(interaction(CalendarYear, CalendarQuarter), as.numeric(CalendarYear)), y = SalesAmount, fill = Promocion_SiNo)) +
     geom_bar(stat="identity") +
   labs(x = "Trimestre", y = "Total vendido") + 
-  theme(axis.text.x = element_text(angle = 60, vjust = 0.5, hjust=1))
+   ggtitle("Evolución de ventas con y sin promoción") +
+  theme_minimal() +
+    theme(axis.text.x = element_text(angle = 60, vjust = 0.5, hjust=1)) 
 ```
 
 ### Aplicación de promociones por categoría
 
 ##### Visualización 7
 
-Se observa cómo la categoría bicicletas es la que cuenta con mayor venta promocional. Esto tiene sentido dato que son los productos más costosos monetariamente.
+Se observa cómo la categoría bicicletas es la que cuenta con mayor venta promocional. Esto tiene sentido dato que son los productos más costosos monetariamente, como se observó en la visualización 5.
 
 ```{r, echo = FALSE, eval = TRUE}
 query5 <- "WITH helper1 AS (SELECT DISTINCT isales.SalesOrderNumber, categ.SpanishProductCategoryName,
@@ -413,7 +423,8 @@ q5 %>%
   labs(x = "Categoría", y = "Total") +
   ggtitle("Aplicación de promociones a productos por categoría") +
   scale_color_manual(values = c("Productos con promoción" = "red", "Productos sin promoción" = "blue"), 
-                    labels = c("Productos con promoción", "Productos sin promoción"))
+                    labels = c("Productos con promoción", "Productos sin promoción")) +
+  theme_minimal()
 ```
 
 ### Las promociones más aplicadas
@@ -429,7 +440,7 @@ LEFT JOIN dbo.DimProduct prod ON isales.ProductKey = prod.ProductKey
 WHERE isales.PromotionKey != '1'
 AND YEAR(isales.OrderDate) IN (2010, 2011, 2012, 2013)
 GROUP BY isales.PromotionKey)
-SELECT t1.PromotionKey, t1.total_uso_id_promo AS total_uso_promo, promo.SpanishPromotionName, promo.SpanishPromotionType Tipo, promo.SpanishPromotionCategory Categoria
+SELECT t1.PromotionKey Clave , t1.total_uso_id_promo AS n_veces_uso, promo.SpanishPromotionName, promo.SpanishPromotionType Tipo, promo.SpanishPromotionCategory Categoria
 FROM tabla1 t1
 LEFT JOIN dbo.DimPromotion promo on t1.PromotionKey = promo.PromotionKey
 ORDER BY total_uso_id_promo DESC"
@@ -459,7 +470,7 @@ q7 <- dbGetQuery(con, query7)
 
 ##### Visualización 9
 
-Se observa cómo las ventas 2010-2013 se encuentran atomizadas entre los resellers del período. Si bien esta tabla presenta a los 5 resellers con más venta, los volumenes son bajos.
+Se observa cómo las ventas 2010-2013 se encuentran atomizadas entre los resellers del período. Si bien esta tabla presenta a los 5 resellers con más ventas, los volúmenes son bajos.
 
 ```{r, echo = FALSE, eval = TRUE}
 q7 %>% 
@@ -508,12 +519,12 @@ q8 %>%
 ```
 
 ```{r, echo = FALSE, eval = TRUE}
-q8 %>% 
-  ggplot(aes(x = anio, y = total_ventas_reseller_anio, color = ResellerName)) +
-  geom_line()
+# q8 %>% 
+#   ggplot(aes(x = anio, y = total_ventas_reseller_anio, color = ResellerName)) +
+#   geom_line()
 ```
 
-## Vendedores y promociones
+## Resellers y promociones
 
 ```{r, echo = FALSE, eval = TRUE}
 query9 <- "WITH producto_venta_reseller AS (SELECT rsales.ProductKey, rsales.SalesOrderNumber, dr.ResellerName, rsales.PromotionKey
@@ -551,6 +562,8 @@ q9 <- dbGetQuery(con, query9)
 ```
 
 ##### Visualización 11
+
+Se observa que el carácter marginal de la venta promocional se refleja homogéneamente en la actividad de los resellers:
 
 ```{r, echo = FALSE, eval = TRUE}
 q9 %>% 
@@ -600,12 +613,14 @@ q10 <- dbGetQuery(con, query10)
 
 ```
 
-##### Visualización 12 RECORTAR
+##### Visualización 12 
+
+Se observa cómo existen vendedores que se destacan por el volumen de unidades vendidas, tales como Bike Dealers Association, Friendly Bike Shop o Advances Bike Components. Es de interés analizar las estrategias de venta de esos resellers para promover que otros las adopten.
 
 ```{r, echo = FALSE, eval = TRUE}
 q10 %>% 
   gt() %>% 
-  tab_header(title = md('**Top 10 Vendedores proactivos**'),
+  tab_header(title = md('**Top 10 Vendedores (por ventas realizadas)**'),
                      subtitle = 'Ventas realizadas vs Total de ítems vendidos' ) %>%
   opt_align_table_header('left')
 ```
@@ -651,12 +666,16 @@ LEFT JOIN total_ventas_realizadas_reseller tvrr ON tir.ResellerName = tvrr.Resel
 q10b <- dbGetQuery(con, query10b)
 q10b %>% 
   ggplot(aes(x=ventas_realizadas, y = total_unidades_vendidas)) +
-  geom_point() 
+  geom_point() +
+  ggtitle("Resellers: volumen de venta vs volumen de unidades vendidas") +
+  theme_minimal()
 ```
 
 ##### Visualización 14
 
-```{r, echo = FALSE, eval = TRUE}
+En la siguiente visualización se observa que existen resellers que se destacan al comparar el total de unidades vendidas con el total de productos vendidos (teniendo en cuenta que 1 producto = 1 nombre de producto). Sería de interés
+
+```{r, echo = FALSE, eval = TRUE, warning=FALSE}
 query10c <- "WITH producto_venta_reseller AS (SELECT rsales.ProductKey, rsales.OrderQuantity, rsales.SalesOrderNumber, dr.ResellerName, rsales.PromotionKey
 FROM dbo.FactResellerSales rsales
 LEFT JOIN dbo.DimReseller dr ON rsales.ResellerKey = dr.ResellerKey
@@ -681,7 +700,11 @@ LEFT JOIN total_items_reseller tir ON tvr.ResellerName = tir.ResellerName"
 q10c <- dbGetQuery(con, query10c)
 q10c %>% 
   ggplot(aes(x=total_ventas, y = total_productos)) +
-  geom_point() 
+  geom_point() +
+  ggforce::geom_mark_ellipse(aes(filter = total_productos > 1500)) +
+  ggtitle("Resellers: productos vendidos vs volumen de unidades vendidas") +
+  geom_text(aes(label=ifelse(total_productos>2000,as.character(ResellerName),'')),hjust=1,vjust=0) +
+  theme_minimal()
 ```
 
 ## Conclusiones
@@ -690,8 +713,10 @@ q10c %>%
 
 -   Las ventas por vía digital aumentan año a año. Cada vez es mayor el % de ventas por internet respecto a las de resellers
 
--   Las ventas por internet parecen sub-utilizar el abanico de promociones de la organización. Es necesario examinar la causa de esto, y a su vez, generar nuevos tipos de promociones que aprovechen lo específico del canal digital
+-   La venta promocional en ventas online es aún una estrategia de venta muy marginal, que parece estancada en el último año.
+
+-   Las ventas por internet parecen sub-utilizar el abanico de promociones de la organización, al igual que las ventas realizadas por resellers. Es necesario examinar la causa de esto, y a su vez, generar nuevos tipos de promociones que aprovechen lo específico del canal digital.
+
+-   Existen resellers que se destacan por el volumen de unidades vendidas. Es de interés analizar las estrategias de venta de esos resellers para promover que otros las adopten
 
 -   Existen resellers que son outliers respecto a su volumen de ventas o respecto al total de ítems vendidos. Es vital realizar estudios que permitan hallar las causas de su éxito.
-
--   
