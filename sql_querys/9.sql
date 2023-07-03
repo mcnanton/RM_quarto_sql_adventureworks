@@ -24,6 +24,7 @@ total_vtas_reseller_promo AS (
 SELECT tvr.ResellerName, tvr.total_ventas, ISNULL(tvrp.total_ventas_promo, 0) as total_ventas_promo
 FROM total_vtas_reseller tvr
 LEFT JOIN total_vtas_reseller_promo tvrp ON tvr.ResellerName = tvrp.ResellerName)
-SELECT ResellerName, total_ventas, total_ventas_promo, (total_ventas_promo*100/total_ventas) as porc_vtas_con_promo
+SELECT ResellerName, total_ventas as total_productos, total_ventas_promo, (total_ventas_promo*100/total_ventas) as porc_vtas_con_promo
 FROM totales
+WHERE total_ventas >100
 ORDER BY porc_vtas_con_promo DESC

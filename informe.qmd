@@ -1,13 +1,14 @@
 ---
-title: "Informe"
+title: "Informe: DW AdventureWorks2019"
+author: "María Nanton, Magalí Rodríguez Pires"
 format:
   pdf:
-    toc: true
+    toc: false
     number-sections: true
     colorlinks: true
 ---
 
-```{r, echo = FALSE, eval = TRUE}
+```{r, echo = FALSE, eval = TRUE, warning=FALSE, message=FALSE}
 library(odbc)
 library(DBI)
 library(dplyr)
@@ -30,8 +31,6 @@ con <- dbConnect(odbc(),
                  PWD = password)
           
 ```
-
-# Informe: DW AdventureWorks2019
 
 ## Exploración general
 
@@ -157,7 +156,7 @@ ORDER BY ProductosVendidos_PorSubCategoria DESC
 q2a <- dbGetQuery(con, query2a)
 ```
 
-En la tabla a continuación se observa cómo la subcategoría de bicicletas de carrera es la que posee mayor cantidad de productos vendidos.
+En la tabla a continuación se observa cómo la subcategoría de bicicletas de carrera es la que posee mayor cantidad de productos vendidos, seguida por la de bicicletas de montaña. 
 
 ```{r, echo = FALSE, eval = TRUE}
 q2a %>% 
@@ -221,7 +220,7 @@ ORDER BY ProductosVendidos_PorCategoria DESC
 q2b <- dbGetQuery(con, query2b)
 ```
 
-En el caso de la distribución de ventas por categoría, vemos como la categoría Bicicletas es la que aporta la mayor cantidad de productos vendidos.
+En el caso de la distribución de ventas por categoría, vemos como la categoría Bicicletas es la que aporta la mayor cantidad de productos vendidos. Podemos concluir que el volumen de ventas de la organización depende fuertemente de la venta de bicicletas, no obstante las tres categorías restantes sumadas constituyen el porcentaje mayoritario del volumen total de ventas.
 
 ```{r, echo = FALSE, eval = TRUE}
 q2b %>% 
@@ -432,6 +431,7 @@ q5 %>%
 ### Las promociones más aplicadas
 
 ##### Visualización 8
+Se observa que la distribución de promociones aplicadas es muy asimétrica: el descuento por volumen es el más aplicado. Sería de interés explorar un esquema más flexible de promociones para ofrecer más opciones más allá de la venta por volumen o el descuento en la ocasión del lanzamiento de un nuevo producto.
 
 ```{r, echo = FALSE, eval = TRUE}
 query6 <- "WITH tabla1 AS (SELECT isales.PromotionKey, COUNT(*) as total_uso_id_promo
@@ -472,7 +472,7 @@ q7 <- dbGetQuery(con, query7)
 
 
 ##### Visualización 9
-Se observa cómo las ventas 2010-2013 se encuentran atomizadas entre los resellers del período
+Se observa cómo las ventas 2010-2013 se encuentran atomizadas entre los resellers del período. Si bien esta tabla presenta a los 5 resellers con más venta, los volumenes son bajos.
 
 ```{r, echo = FALSE, eval = TRUE}
 q7 %>% 
@@ -509,7 +509,8 @@ q8 <- dbGetQuery(con, query8)
 
 ##### Visualización 10
 
-```{r}
+Los volumenes bajos de ventas no permiten extraer conclusiones sobre el vínculo entre resellers específicos y un total de ventas anual particularmente llamativo
+```{r, echo = FALSE, eval = TRUE}
 q8 %>% 
   gt() %>% 
   tab_header(title = md('**Recorrido de mejores resellers**'),
@@ -553,18 +554,20 @@ total_vtas_reseller_promo AS (
 SELECT tvr.ResellerName, tvr.total_ventas, ISNULL(tvrp.total_ventas_promo, 0) as total_ventas_promo
 FROM total_vtas_reseller tvr
 LEFT JOIN total_vtas_reseller_promo tvrp ON tvr.ResellerName = tvrp.ResellerName)
-SELECT ResellerName, total_ventas, total_ventas_promo, (total_ventas_promo*100/total_ventas) as porc_vtas_con_promo
+SELECT TOP 5 ResellerName, total_ventas as total_productos, total_ventas_promo, (total_ventas_promo*100/total_ventas) as porc_vtas_con_promo
 FROM totales
+WHERE total_ventas >100
 ORDER BY porc_vtas_con_promo DESC"
 q9 <- dbGetQuery(con, query9)
 
 ```
 
-```{r}
+##### Visualización 11 
+```{r, echo = FALSE, eval = TRUE}
 q9 %>% 
   gt() %>% 
-  tab_header(title = md('**Vendedores que aplicaron la mayor cantidad de promociones**'),
-                     subtitle = 'En relación a sus ventas 2010-2013' ) %>%
+  tab_header(title = md('**Top 5 vendedores que aplicaron la mayor cantidad de promociones**'),
+                     subtitle = 'Para Resellers con más de 100 ventas. 2010-2013' ) %>%
   opt_align_table_header('left')
 ```
 
@@ -608,7 +611,7 @@ q10 <- dbGetQuery(con, query10)
 
 ```
 
-##### Visualización 11 RECORTAR
+##### Visualización 12 RECORTAR
 
 ```{r, echo = FALSE, eval = TRUE}
 q10 %>% 
@@ -619,7 +622,7 @@ q10 %>%
 ```
 
 
-##### Visualización 12
+##### Visualización 13
 
 ```{r, echo = FALSE, eval = TRUE}
 
@@ -662,8 +665,8 @@ q10b %>%
   ggplot(aes(x=ventas_realizadas, y = total_unidades_vendidas)) +
   geom_point() 
 ```
-
-```{r}
+##### Visualización 14 
+```{r, echo = FALSE, eval = TRUE}
 query10c <- "WITH producto_venta_reseller AS (SELECT rsales.ProductKey, rsales.OrderQuantity, rsales.SalesOrderNumber, dr.ResellerName, rsales.PromotionKey
 FROM dbo.FactResellerSales rsales
 LEFT JOIN dbo.DimReseller dr ON rsales.ResellerKey = dr.ResellerKey
