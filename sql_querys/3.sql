@@ -1,6 +1,6 @@
 WITH reseller AS
 (
-SELECT frs.ProductKey, prod.SpanishProductName, frs.OrderQuantity, frs.UnitPrice, categ.SpanishProductCategoryName, 'Reseller Sales' AS CanalVenta, UnitPrice*OrderQuantity AS MontoVendido
+SELECT frs.ProductKey, prod.EnglishProductName, frs.OrderQuantity, frs.UnitPrice, categ.SpanishProductCategoryName, 'Reseller Sales' AS CanalVenta, UnitPrice*OrderQuantity AS MontoVendido
 FROM dbo.FactResellerSales frs
 LEFT JOIN dbo.DimProduct prod ON frs.ProductKey = prod.ProductKey
 LEFT JOIN dbo.DimProductSubcategory sub ON prod.ProductSubcategoryKey = sub.ProductSubcategoryKey
@@ -9,7 +9,7 @@ LEFT JOIN dbo.DimProductCategory categ ON sub.ProductCategoryKey = categ.Product
 
 internet AS 
 (
-SELECT fis.ProductKey, prod.SpanishProductName, fis.OrderQuantity, fis.UnitPrice, categ.SpanishProductCategoryName, 'Internet Sales' AS CanalVenta, UnitPrice*OrderQuantity AS MontoVendido
+SELECT fis.ProductKey, prod.EnglishProductName, fis.OrderQuantity, fis.UnitPrice, categ.SpanishProductCategoryName, 'Internet Sales' AS CanalVenta, UnitPrice*OrderQuantity AS MontoVendido
 FROM dbo.FactInternetSales fis
 LEFT JOIN dbo.DimProduct prod ON fis.ProductKey = prod.ProductKey
 LEFT JOIN dbo.DimProductSubcategory sub ON prod.ProductSubcategoryKey = sub.ProductSubcategoryKey
@@ -18,10 +18,10 @@ LEFT JOIN dbo.DimProductCategory categ ON sub.ProductCategoryKey = categ.Product
 
 ambas AS 
 (
-SELECT ProductKey, SpanishProductCategoryName, SpanishProductName, OrderQuantity, UnitPrice, CanalVenta, MontoVendido
+SELECT ProductKey, SpanishProductCategoryName, EnglishProductName, OrderQuantity, UnitPrice, CanalVenta, MontoVendido
 FROM reseller
 UNION ALL
-SELECT ProductKey, SpanishProductCategoryName, SpanishProductName, OrderQuantity, UnitPrice, CanalVenta, MontoVendido
+SELECT ProductKey, SpanishProductCategoryName, EnglishProductName, OrderQuantity, UnitPrice, CanalVenta, MontoVendido
 FROM internet
 ),
 
@@ -34,7 +34,7 @@ SUM(MontoVendido) OVER(PARTITION BY SpanishProductCategoryName, CanalVenta, Prod
 FROM ambas),
 
 tabla_sumario_producto AS (
-SELECT DISTINCT CanalVenta, SpanishProductCategoryName, ProductKey, SpanishProductName, n_prod_vendidos_categoria_canal, ventas_producto_categoria_canal, monto_vendido_categoria_canal, monto_vendido_producto_categoria_canal
+SELECT DISTINCT CanalVenta, SpanishProductCategoryName, ProductKey, EnglishProductName, n_prod_vendidos_categoria_canal, ventas_producto_categoria_canal, monto_vendido_categoria_canal, monto_vendido_producto_categoria_canal
 FROM tabla_sumario),
 
 rn_tabla_sumario_producto AS(
